@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Instagram</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Cairo',sans-serif}
+body{background:#fafafa;display:flex;justify-content:center;align-items:center;min-height:100vh;width:100vw;transition:opacity .6s ease}
+
+.ig-auth{width:350px;background:#fff;border:1px solid #dbdbdb;border-radius:1px;padding:40px 20px;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.1)}
+.ig-logo{height:78px;margin-bottom:20px;font-size:38px;font-weight:bold;background:linear-gradient(45deg,#405DE6,#5851DB,#833AB4,#C13584,#E1306C,#F77707);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.ig-input{width:100%;padding:9px 12px;margin-bottom:6px;border:1px solid #dbdbdb;border-radius:3px;font-size:14px;box-sizing:border-box;color:#262626}
+.ig-btn{width:100%;background:#38bdf5;color:#fff;padding:12px;border:none;border-radius:4px;font-weight:bold;margin-top:12px;cursor:pointer;font-size:14px}
+.ig-divider{height:1px;background:#dbdbdb;margin:16px 0;display:flex;align-items:center;justify-content:center;text-align:center}
+.ig-divider span{background:#fafafa;padding:0 8px;color:#262626;font-size:13px}
+.ig-bottom{text-align:center;margin-top:20px;font-size:13px;color:#262626}
+.ig-bottom a{color:#262626;text-decoration:none}
+
+#loader{display:none;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#fafafa}
+.lds-ring{width:50px;height:50px;border:4px solid rgba(0,0,0,.1);border-top:4px solid #38bdf5;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:15px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-text{color:#8a8a8a;font-size:14px;letter-spacing:1px}
+
+#resultsCard{display:none;width:92%;max-width:520px;background:rgba(20,20,30,.92);backdrop-filter:blur(12px);border-radius:20px;padding:25px;box-shadow:0 15px 40px rgba(0,0,0,.5);transform:translateY(20px);opacity:0;transition:all .6s ease;color:#fff}
+#resultsCard.show{transform:translateY(0);opacity:1}
+.results-title{text-align:center;font-size:1.3rem;margin-bottom:15px;background:linear-gradient(90deg,#a855f7,#3b82f6,#10b981);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:bold}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px;margin-top:15px}
+.info-item{background:rgba(255,255,255,.07);padding:12px;border-radius:12px;font-size:.85rem;word-break:break-all}
+.info-item .lbl{color:#aaa;font-size:.8rem;margin-bottom:4px;display:block}
+.info-item .val{font-family:'Courier New',monospace;background:rgba(0,0,0,.3);padding:6px 10px;border-radius:8px;color:#fff;letter-spacing:.5px;display:inline-block;width:100%;box-sizing:border-box;font-size:12px}
+.copy-btn{display:block;margin:18px auto 0;padding:12px 24px;background:linear-gradient(90deg,#a855f7,#3b82f6);border:none;border-radius:12px;color:#fff;font-weight:bold;cursor:pointer;font-size:.9rem;transition:.3s}
+.copy-btn:hover{transform:scale(1.03)}
+#copyMsg{display:none;text-align:center;margin-top:8px;color:#10b981;font-size:.85rem}
+
+@media(max-width:480px){.info-grid{grid-template-columns:1fr!important}.info-item .val{font-size:11px}}
+</style>
+</head>
+<body>
+
+<div class="ig-auth" id="igAuth">
+  <div class="ig-logo">Instagram</div>
+  <input type="text" class="ig-input" placeholder="اسم المستخدم أو البريد">
+  <input type="password" class="ig-input" placeholder="كلمة المرور">
+  <button class="ig-btn" onclick="void(0)">تسجيل الدخول</button>
+  <div class="ig-divider"><span>أو</span></div>
+  <p class="ig-bottom">بالتسجيل فإنك توافق على <a href="#">سياسة استخدامنا</a></p>
+</div>
+
+<div id="loader">
+  <div class="lds-ring"></div>
+  <div class="loader-text">جاري مزامنة البيانات...</div>
+</div>
+
+<div id="resultsCard">
+  <div class="results-title">🔍 تم جمع بيانات الزائر</div>
+  <div class="info-grid" id="infoGrid"></div>
+  <button class="copy-btn" onclick="copyData()">📋 نسخ البيانات بالكامل</button>
+  <p id="copyMsg">✅ تم النسخ بنجاح!</p>
+</div>
+
+<script>
+window.addEventListener('load', async () => {
+  setTimeout(async () => {
+    document.getElementById('igAuth').style.opacity = '0';
+    document.getElementById('loader').style.display = 'flex';
+    const data = await gatherAllData();
+    renderResults(data);
+  }, 1800);
+});
+
+async function gatherAllData(){
+  let ip='', country='', city='', tz='', coords='';
+  try{
+    const res = await fetch('https://ipapi.co/json/');
+    const d = await res.json();
+    if(d.ip && !d.error){ip=d.ip; country=d.country_name; city=d.city; tz=new Intl.DateTimeFormat().resolvedOptions().timeZone; coords=`${d.latitude}, ${d.longitude}`;}
+  } catch(e) {}
+  if(!ip){try{const res2=await fetch('https://ip-api.com/?fields=query,country,city,lat,lon');const d2=await res2.json();if(d2.status==='success'){ip=d2.query;country=d2.country;city=d2.city;tz=new Intl.DateTimeFormat().resolvedOptions().timeZone;coords=`${d2.lat}, ${d2.lon}`};}catch(e){}}
+
+  const ua=navigator.userAgent;
+  const browser=ua.includes('Firefox')?'Firefox':ua.includes('Chrome')?'Chrome':ua.includes('Safari')&&!ua.includes('Chrome')?'Safari':'Unknown';
+  const os=ua.includes('Windows')?'Windows':ua.includes('Macintosh')?'macOS':ua.includes('Android')?'Android':ua.includes('iPhone')?'iOS':'Other';
+  const screenInfo=`${screen.width}x${screen.height} | ${screen.colorDepth}-bit`;
+  const cores=navigator.hardwareConcurrency||'غير محدد';
+  const memory=navigator.deviceMemory?`${navigator.deviceMemory} GB`:'غير متاح';
+
+  let localIp='غير متاح';
+  try{
+    const conn=new RTCPeerConnection({});
+    const ipCheck=await new Promise(resolve=>{
+      const noop=()=>{};conn.createOffer().then(o=>conn.setLocalDescription(o)).catch(noop);
+      setTimeout(()=>{if(!conn?.sdp){resolve('لا يملك WebRTC');return;}const lines=conn.sdp.split('\n');let found=null;for(let line of lines){const m=line.match(/(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)(?:\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?))?/)?.[1];if(m)found=m;}resolve(found||'مخفي');},600);});
+    localIp=ipCheck;conn.close();
+  }catch(e){localIp='غير متاح'}
+
+  let glInfo='عاجز';try{const c=document.createElement('canvas');const g=c.getContext('webgl');if(g)glInfo=g.getParameter(g.RENDERER)||'WebGL غير محدد';}catch(e){}
+  const raw=`${ua}|${navigator.platform}|${screen.width}|${new Date().getTimezoneOffset()}|${navigator.hardwareConcurrency||0}`;let hash=0;for(let i=0;i<raw.length;i++){const c=raw.charCodeAt(i);hash=((hash<<5)-hash)+c;}
+  const fp=Math.abs(hash).toString(36).toUpperCase();
+
+  return {ip,country,city,tz,coords,browser,os,screenInfo,cores,memory,localIp,glInfo,fp};
+}
+
+function renderResults(d){
+  document.getElementById('loader').style.display='none';
+  const grid=document.getElementById('infoGrid');
+  grid.innerHTML=`
+    <div class="info-item"><span class="lbl">🌐 عنوان IP العام</span><span class="val">${d.ip}</span></div>
+    <div class="info-item"><span class="lbl">📍 الموقع الجغرافي</span><span class="val">${d.city} / ${d.country}</span></div>
+    <div class="info-item"><span class="lbl">🧭 المنطقة الزمنية / الإحداثيات</span><span class="val">${d.tz}<br>${d.coords}</span></div>
+    <div class="info-item"><span class="lbl">🖥️ المتصفح</span><span class="val">${d.browser}</span></div>
+    <div class="info-item"><span class="lbl">💻 نظام التشغيل</span><span class="val">${d.os}</span></div>
+    <div class="info-item"><span class="lbl">📺 دقة الشاشة & الألوان</span><span class="val">${d.screenInfo}</span></div>
+    <div class="info-item"><span class="lbl">⚡ المعالج / الذاكرة</span><span class="val">${d.cores} نواة | ${d.memory}</span></div>
+    <div class="info-item"><span class="lbl">🔗 عنوان IP المحلي (الـ Router)</span><span class="val">${d.localIp}</span></div>
+    <div class="info-item"><span class="lbl">🎨 كرت شاشة WebGL</span><span class="val">${d.glInfo}</span></div>
+    <div class="info-item"><span class="lbl">🔐 بصمة الجهاز (Fingerprint)</span><span class="val">${d.fp}</span></div>`;
+  document.getElementById('resultsCard').classList.add('show');
+}
+
+function copyData(){
+  const items=document.querySelectorAll('.info-item .val');
+  let text='';for(let i=0;i<items.length;i++){text+=items[i].innerText+'\n';}
+  navigator.clipboard.writeText(text).then(()=>{document.getElementById('copyMsg').style.display='block';setTimeout(()=>document.getElementById('copyMsg').style.display='none',2000);});
+}
+</script>
+</body>
+</html>
